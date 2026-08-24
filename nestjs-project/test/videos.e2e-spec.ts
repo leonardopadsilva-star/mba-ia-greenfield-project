@@ -348,4 +348,78 @@ describe('Videos (e2e)', () => {
       expect(res.body.error).toBe('VIDEO_NOT_FOUND');
     });
   });
+
+  describe('GET /videos/:publicId/stream and /download', () => {
+    async function initiateUpload(token: string): Promise<{ id: string }> {
+      const res = await request(app.getHttpServer())
+        .post('/videos')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          original_filename: 'video.mp4',
+          content_type: 'video/mp4',
+          size_bytes: 1024,
+        });
+      return res.body;
+    }
+
+    async function makeProntoVideo(token: string): Promise<string> {
+      const initiated = await initiateUpload(token);
+      await dataSource
+        .getRepository(Video)
+        .update({ public_id: initiated.id }, { status: VideoStatus.PRONTO });
+      return initiated.id;
+    }
+
+    it('GET .../stream returns 302 with a Location header when pronto', async () => {
+      const token = await registerConfirmAndLogin();
+      const publicId = await makeProntoVideo(token);
+
+      const res = await request(app.getHttpServer()).get(
+        `/videos/${publicId}/stream`,
+      );
+
+      expect(res.status).toBe(302);
+      expect(res.headers.location).toBeTruthy();
+    }, 30000);
+
+    it('GET .../stream returns 409 VIDEO_NOT_READY when not pronto', async () => {
+      const token = await registerConfirmAndLogin();
+      const initiated = await initiateUpload(token);
+
+      const res = await request(app.getHttpServer())
+        .get(`/videos/${initiated.id}/stream`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe('VIDEO_NOT_READY');
+    }, 30000);
+
+    it('GET .../download returns 302 with an attachment-disposition URL when pronto', async () => {
+      const token = await registerConfirmAndLogin();
+      const publicId = await makeProntoVideo(token);
+
+      const res = await request(app.getHttpServer()).get(
+        `/videos/${publicId}/download`,
+      );
+
+      expect(res.status).toBe(302);
+      expect(decodeURIComponent(res.headers.location)).toContain(
+        'attachment',
+      );
+    }, 30000);
+
+    it('both endpoints return 404 VIDEO_NOT_FOUND for an unknown publicId', async () => {
+      const streamRes = await request(app.getHttpServer()).get(
+        '/videos/doesnotexist/stream',
+      );
+      const downloadRes = await request(app.getHttpServer()).get(
+        '/videos/doesnotexist/download',
+      );
+
+      expect(streamRes.status).toBe(404);
+      expect(streamRes.body.error).toBe('VIDEO_NOT_FOUND');
+      expect(downloadRes.status).toBe(404);
+      expect(downloadRes.body.error).toBe('VIDEO_NOT_FOUND');
+    });
+  });
 });

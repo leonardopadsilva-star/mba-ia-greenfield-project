@@ -1,7 +1,7 @@
 # phase-03-videos — Progress
 
 **Status:** in_progress
-**SIs:** 9/11 completed
+**SIs:** 10/11 completed
 
 ### SI-03.1 — Dependencies, Config Namespaces, and Docker Compose
 - **Status:** completed
@@ -73,9 +73,12 @@
   - E2E test for the "pronto video visible anonymously" case writes `status: 'pronto'` directly via `dataSource.getRepository(Video).update(...)` rather than running the real worker — the worker is a separate process not started during API e2e runs; this is the standard way to reach an async-background-driven state in these tests.
 
 ### SI-03.10 — GET /videos/:publicId/stream and /download
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 41 passing (22 videos.service unit incl. 4 new + 19 videos e2e incl. 4 new)
+- **Observations:**
+  - Used NestJS's declarative `@Redirect()` decorator + returning `{ url, statusCode }` from the handler, rather than `@Res()` — keeps the response inside NestJS's normal pipeline so a thrown `VideoNotFoundException`/`VideoNotReadyException` still gets mapped by the global `DomainExceptionFilter` (using `@Res()` opts out of that unless handled manually).
+  - Even the video's owner cannot stream/download a non-`pronto` video — `getStreamUrl`/`getDownloadUrl` call `findByPublicId` (which lets the owner see any status) and then apply a *separate* `status !== PRONTO` check, matching the Authorization Matrix where all three columns (anonymous/owner/non-owner) require `pronto` for these two endpoints specifically, unlike the plain `GET /videos/:publicId` status endpoint.
+  - E2E tests reach a `pronto` video the same way as SI-03.9's — direct `dataSource` update, since the worker isn't running during API e2e tests.
 
 ### SI-03.11 — End-to-End Upload-to-Playback Flow
 - **Status:** pending

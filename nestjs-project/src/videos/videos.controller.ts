@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Redirect,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -201,6 +202,68 @@ export class VideosController {
       height: video.height,
       created_at: video.created_at,
     };
+  }
+
+  @Public()
+  @Get(':publicId/stream')
+  @Redirect()
+  @ApiOperation({
+    summary: 'Stream a video',
+    description:
+      'Redirects to a short-lived presigned URL for the original file, which the storage layer serves with native Range/206 support.',
+  })
+  @ApiResponse({ status: 302, description: 'Redirect to storage' })
+  @ApiResponse({
+    status: 404,
+    description: 'Video not found or not visible to the requester',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Video is not ready for playback',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  async streamVideo(
+    @CurrentUser() user: JwtPayload | undefined,
+    @Param('publicId') publicId: string,
+  ): Promise<{ url: string; statusCode: number }> {
+    const requesterChannelId = await this.resolveRequesterChannelId(user);
+    const url = await this.videosService.getStreamUrl(
+      publicId,
+      requesterChannelId,
+    );
+    return { url, statusCode: HttpStatus.FOUND };
+  }
+
+  @Public()
+  @Get(':publicId/download')
+  @Redirect()
+  @ApiOperation({
+    summary: 'Download a video',
+    description:
+      'Redirects to a short-lived presigned URL for the original file, with an attachment content-disposition.',
+  })
+  @ApiResponse({ status: 302, description: 'Redirect to storage' })
+  @ApiResponse({
+    status: 404,
+    description: 'Video not found or not visible to the requester',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Video is not ready for playback',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  async downloadVideo(
+    @CurrentUser() user: JwtPayload | undefined,
+    @Param('publicId') publicId: string,
+  ): Promise<{ url: string; statusCode: number }> {
+    const requesterChannelId = await this.resolveRequesterChannelId(user);
+    const url = await this.videosService.getDownloadUrl(
+      publicId,
+      requesterChannelId,
+    );
+    return { url, statusCode: HttpStatus.FOUND };
   }
 
   private async resolveRequesterChannelId(

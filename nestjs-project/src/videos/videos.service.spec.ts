@@ -8,6 +8,7 @@ import {
   MultipartCompletionFailedException,
   UploadAlreadyCompletedException,
   VideoNotFoundException,
+  VideoNotReadyException,
 } from './exceptions/video.exceptions';
 import { VideosService } from './videos.service';
 
@@ -350,6 +351,75 @@ describe('VideosService', () => {
       await expect(
         service.findByPublicId(video.public_id, 'other-channel'),
       ).rejects.toThrow(VideoNotFoundException);
+    });
+  });
+
+  describe('getStreamUrl / getDownloadUrl', () => {
+    it('throws VideoNotFoundException when the video is not visible to the requester', async () => {
+      const video = makeVideo({ status: VideoStatus.PROCESSANDO });
+      const repository: any = { findOne: jest.fn().mockResolvedValue(video) };
+      const service = new VideosService(repository, {} as any, makeProducer());
+
+      await expect(
+        service.getStreamUrl(video.public_id),
+      ).rejects.toThrow(VideoNotFoundException);
+    });
+
+    it('throws VideoNotReadyException when the video is visible but not pronto (even for the owner)', async () => {
+      const video = makeVideo({ status: VideoStatus.PROCESSANDO });
+      const repository: any = { findOne: jest.fn().mockResolvedValue(video) };
+      const service = new VideosService(repository, {} as any, makeProducer());
+
+      await expect(
+        service.getStreamUrl(video.public_id, video.channel_id),
+      ).rejects.toThrow(VideoNotReadyException);
+    });
+
+    it('getStreamUrl returns a presigned URL without a content-disposition override', async () => {
+      const video = makeVideo({ status: VideoStatus.PRONTO });
+      const repository: any = { findOne: jest.fn().mockResolvedValue(video) };
+      const storageService: any = {
+        getPresignedGetUrl: jest.fn().mockResolvedValue('https://signed-stream'),
+      };
+      const service = new VideosService(
+        repository,
+        storageService,
+        makeProducer(),
+      );
+
+      const url = await service.getStreamUrl(video.public_id);
+
+      expect(url).toBe('https://signed-stream');
+      expect(storageService.getPresignedGetUrl).toHaveBeenCalledWith(
+        video.original_key,
+        { expiresIn: 900 },
+      );
+    });
+
+    it('getDownloadUrl returns a presigned URL with an attachment content-disposition', async () => {
+      const video = makeVideo({ status: VideoStatus.PRONTO });
+      const repository: any = { findOne: jest.fn().mockResolvedValue(video) };
+      const storageService: any = {
+        getPresignedGetUrl: jest
+          .fn()
+          .mockResolvedValue('https://signed-download'),
+      };
+      const service = new VideosService(
+        repository,
+        storageService,
+        makeProducer(),
+      );
+
+      const url = await service.getDownloadUrl(video.public_id);
+
+      expect(url).toBe('https://signed-download');
+      expect(storageService.getPresignedGetUrl).toHaveBeenCalledWith(
+        video.original_key,
+        {
+          expiresIn: 900,
+          responseContentDisposition: `attachment; filename="${video.original_filename}"`,
+        },
+      );
     });
   });
 });

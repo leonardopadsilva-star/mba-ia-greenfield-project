@@ -15,7 +15,10 @@ import {
   MultipartCompletionFailedException,
   UploadAlreadyCompletedException,
   VideoNotFoundException,
+  VideoNotReadyException,
 } from './exceptions/video.exceptions';
+
+const STREAM_URL_EXPIRATION_SECONDS = 900;
 
 const TEN_GB_BYTES = 10 * 1024 * 1024 * 1024;
 const PART_SIZE_BYTES = 10 * 1024 * 1024;
@@ -141,6 +144,33 @@ export class VideosService {
       throw new VideoNotFoundException();
     }
     return video;
+  }
+
+  async getStreamUrl(
+    publicId: string,
+    requesterChannelId?: string,
+  ): Promise<string> {
+    const video = await this.findByPublicId(publicId, requesterChannelId);
+    if (video.status !== VideoStatus.PRONTO) {
+      throw new VideoNotReadyException();
+    }
+    return this.storageService.getPresignedGetUrl(video.original_key!, {
+      expiresIn: STREAM_URL_EXPIRATION_SECONDS,
+    });
+  }
+
+  async getDownloadUrl(
+    publicId: string,
+    requesterChannelId?: string,
+  ): Promise<string> {
+    const video = await this.findByPublicId(publicId, requesterChannelId);
+    if (video.status !== VideoStatus.PRONTO) {
+      throw new VideoNotReadyException();
+    }
+    return this.storageService.getPresignedGetUrl(video.original_key!, {
+      expiresIn: STREAM_URL_EXPIRATION_SECONDS,
+      responseContentDisposition: `attachment; filename="${video.original_filename}"`,
+    });
   }
 
   private async findOwnedVideo(
