@@ -80,6 +80,13 @@
   - Even the video's owner cannot stream/download a non-`pronto` video — `getStreamUrl`/`getDownloadUrl` call `findByPublicId` (which lets the owner see any status) and then apply a *separate* `status !== PRONTO` check, matching the Authorization Matrix where all three columns (anonymous/owner/non-owner) require `pronto` for these two endpoints specifically, unlike the plain `GET /videos/:publicId` status endpoint.
   - E2E tests reach a `pronto` video the same way as SI-03.9's — direct `dataSource` update, since the worker isn't running during API e2e tests.
 
+### Final verification fixes (pre-existing regressions caught by the full suite)
+- **Status:** completed
+- **Tests:** 3 passing (migrations.integration-spec.ts x2, videos.module.spec.ts x1)
+- **Observations:**
+  - `src/database/migrations.integration-spec.ts` (legacy, phase-02): its `beforeAll` did `DROP TABLE IF EXISTS ... CASCADE` for cleanup but never dropped the `verification_tokens_type_enum` Postgres type the dropped column referenced — enum types are independent objects, not cascaded from a table drop. A prior run (predating this session — the `db` container had 3 days of uptime) left that type orphaned, so `CreateAuthTokens.up()`'s `CREATE TYPE` failed on rerun with "already exists". Fixed by adding `DROP TYPE IF EXISTS "verification_tokens_type_enum"` to the same `beforeAll` cleanup.
+  - `src/videos/videos.module.spec.ts`: broken since SI-03.5 (when `StorageModule` was added to `VideosModule`'s imports) and never caught because I only ever re-ran the videos service/controller/e2e tests in each subsequent SI's verification, not this module-compile test in isolation. Fixed by adding `ConfigModule.forRoot({ isGlobal: true, load: [storageConfig, queueConfig] })` to the test's imports. **Process gap, not just a code gap:** the per-SI test scoping in this workflow only re-verifies the files a given SI directly touches or that the plan's Tests table names — a module-compile test whose failure is caused by a *sibling* SI's changes (not its own) can go unnoticed until a full-suite run. Worth remembering for future phases.
+
 ### SI-03.11 — End-to-End Upload-to-Playback Flow
 - **Status:** completed
 - **Tests:** 1 passing (real ffprobe/ffmpeg + real RabbitMQ worker process)
