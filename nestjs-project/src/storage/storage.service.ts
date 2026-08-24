@@ -3,12 +3,16 @@ import {
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
   GetObjectCommand,
+  PutObjectCommand,
   S3Client,
   UploadPartCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
+import { createReadStream, createWriteStream } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
+import type { Readable } from 'node:stream';
 import storageConfig from '../config/storage.config';
 
 export interface UploadPart {
@@ -114,6 +118,31 @@ export class StorageService {
         Bucket: this.bucket,
         Key: key,
         UploadId: uploadId,
+      }),
+    );
+  }
+
+  async downloadToFile(key: string, destPath: string): Promise<void> {
+    const result = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
+    await pipeline(
+      result.Body as Readable,
+      createWriteStream(destPath),
+    );
+  }
+
+  async uploadFile(
+    key: string,
+    filePath: string,
+    contentType: string,
+  ): Promise<void> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: createReadStream(filePath),
+        ContentType: contentType,
       }),
     );
   }

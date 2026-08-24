@@ -1,7 +1,7 @@
 # phase-03-videos — Progress
 
 **Status:** in_progress
-**SIs:** 7/11 completed
+**SIs:** 8/11 completed
 
 ### SI-03.1 — Dependencies, Config Namespaces, and Docker Compose
 - **Status:** completed
@@ -55,9 +55,14 @@
   - First e2e run had 2 failures (403 test got 401; 409 test crashed on `initiated.parts[0]` being undefined) — root cause was throttler-storage leakage: `videos.e2e-spec.ts` never cleared `ThrottlerStorage` between tests (unlike `auth.e2e-spec.ts`, which does), so by the 10th+ auth round-trip across the growing suite the per-IP 10 req/min cap on `/auth/*` silently 429'd `register`/`login`, leaving `access_token` (and therefore `initiated`) undefined. Fixed by adding the same `throttlerStorage.storage.clear()` in `beforeEach` that `auth.e2e-spec.ts` already uses — documented as a known gotcha in `.claude/rules/auth-jwt.md`, which I should have applied from the start.
 
 ### SI-03.8 — Video Worker (FFmpeg Processing)
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 6 passing (video-processing.service unit, video-processing.consumer unit, worker.module compile)
+- **Observations:**
+  - `Dockerfile.dev` had no `ffmpeg` binary — added it to the `apt install` line (resolves to ffmpeg 7:5.1.9 from Debian bookworm's main repo, no extra sources needed) and rebuilt the image.
+  - `WorkerModule` is a separate NestJS application root (own `ConfigModule.forRoot` + `TypeOrmModule.forRootAsync`), not nested inside `AppModule` — required duplicating the DB bootstrap wiring, which is expected for a genuinely separate hybrid-microservice process per `phase-03-videos/TD-01`.
+  - `worker.module.spec.ts` (a real compile test hitting the real DB) failed twice while wiring entities: first "Entity metadata for Video#channel was not found", then "...Channel#user was not found" — TypeORM's `autoLoadEntities: true` only registers entities reachable through some `TypeOrmModule.forFeature()` in the imported tree, and `WorkerModule` only registered `Video`. Had to add `Channel` and then `User` to `TypeOrmModule.forFeature([...])` to close the relation chain (`Video → Channel → User`), even though the worker never queries Channel/User directly.
+  - `StorageService` gained two new methods (`downloadToFile`, `uploadFile`) needed by the worker — kept in `StorageService` rather than a separate class since it's the same storage abstraction, just two more operations on it.
+  - Manually started `npm run start:worker:dev` in the `worker` container to verify AC #4 empirically (unit tests can't prove real RabbitMQ connectivity): logged `Nest microservice successfully started`, then drained a real backlog of `video.processing` messages left over from earlier e2e test runs (SI-03.5–03.7 e2e tests emit real jobs since `AppModule` uses the real `QueueModule`, but no worker had ever consumed them). Most backlog entries hit `EntityNotFoundError` (their `Video` rows were already wiped by later tests' `cleanAllTables`) — expected for stale test artifacts, not a defect; one entry found its row, downloaded the (fake, non-video) e2e test payload from MinIO, and correctly failed at `ffprobe` into `status: erro` via the catch path, confirming the full pipeline wiring end-to-end. Stopped and re-killed the process afterward (it respawned once under `nest --watch` mid-kill) to leave the container idle per the project's "don't run the app unless asked" convention.
 
 ### SI-03.9 — GET /videos/:publicId (Status and Metadata)
 - **Status:** pending
