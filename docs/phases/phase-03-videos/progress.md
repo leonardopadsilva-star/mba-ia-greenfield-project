@@ -1,7 +1,7 @@
 # phase-03-videos — Progress
 
 **Status:** in_progress
-**SIs:** 4/11 completed
+**SIs:** 5/11 completed
 
 ### SI-03.1 — Dependencies, Config Namespaces, and Docker Compose
 - **Status:** completed
@@ -32,9 +32,13 @@
   - First test run failed all 3 tests with "Nest can't resolve dependencies... dependency at index [0] appears to be undefined" — root cause was a circular import: `queue.module.ts` imported `VideoProcessingProducer` while `video-processing.producer.ts` imported the `VIDEO_PROCESSING_SERVICE` token back from `queue.module.ts`, so the `@Inject()` decorator saw `undefined` at module-evaluation time. Fixed by extracting the token into `queue.constants.ts` per the project's constants convention — not just a test-setup issue, this would have broken the real app too.
 
 ### SI-03.5 — POST /videos (Initiate Multipart Upload)
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 15 passing (7 channels unit incl. 2 new + 4 videos unit + 1 videos integration + 3 videos e2e)
+- **Observations:**
+  - `ChannelsService` had no way to resolve a channel from a `userId` (only `createChannel`); added `findByUserId(userId)` reusing the existing single `dataSource` dependency (`dataSource.getRepository(Channel).findOne(...)`) instead of injecting a new `Repository<Channel>` — avoids changing the constructor signature and breaking the 5 existing unit tests that call `new ChannelsService(mockDataSource)` with one argument.
+  - `Video.public_id` is `varchar(12)`, so `nanoid()` must be called with an explicit size (`nanoid(12)`) — the package default is 21 chars and would overflow the column.
+  - The video's internal `id` (uuid) is generated client-side via `randomUUID()` *before* insert, because the storage key (`videos/{channelId}/{videoId}/original.<ext>`) needs the id before the row exists; passed explicitly to `repository.create({ id, ... })`, which TypeORM accepts (overrides the column's `DEFAULT uuid_generate_v4()`).
+  - First test run failed all 3 non-channels suites with `SyntaxError: Cannot use import statement outside a module` from `node_modules/nanoid/index.js` — `nanoid@5` is pure ESM and Jest's default `transformIgnorePatterns` skips `node_modules`, so `require()` inside Jest's sandbox couldn't load it (unlike plain `node -e "require('nanoid')"`, which works because Node 22+/25 has native synchronous ESM-interop for `require()` that Jest's own module loader doesn't use). Fixed by adding `"transformIgnorePatterns": ["/node_modules/(?!(nanoid)/)"]` to both the `jest` block in `package.json` and `test/jest-e2e.json`, letting ts-jest transpile nanoid's ESM to CJS.
 
 ### SI-03.6 — POST /videos/:publicId/complete
 - **Status:** pending
