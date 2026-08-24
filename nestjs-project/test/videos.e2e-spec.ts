@@ -9,7 +9,7 @@ import { AuthService } from '../src/auth/auth.service';
 import { DomainExceptionFilter } from '../src/common/filters/domain-exception.filter';
 import { ValidationExceptionFilter } from '../src/common/filters/validation-exception.filter';
 import { cleanAllTables } from '../src/test/create-test-data-source';
-import { Video } from '../src/videos/entities/video.entity';
+import { Video, VideoStatus } from '../src/videos/entities/video.entity';
 
 describe('Videos (e2e)', () => {
   let app: INestApplication<App>;
@@ -283,5 +283,69 @@ describe('Videos (e2e)', () => {
       expect(res.status).toBe(409);
       expect(res.body.error).toBe('INVALID_UPLOAD_STATE');
     }, 30000);
+  });
+
+  describe('GET /videos/:publicId', () => {
+    async function initiateUpload(
+      token: string,
+    ): Promise<{ id: string }> {
+      const res = await request(app.getHttpServer())
+        .post('/videos')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          original_filename: 'video.mp4',
+          content_type: 'video/mp4',
+          size_bytes: 1024,
+        });
+      return res.body;
+    }
+
+    it('returns 404 for a rascunho video requested anonymously', async () => {
+      const token = await registerConfirmAndLogin();
+      const initiated = await initiateUpload(token);
+
+      const res = await request(app.getHttpServer()).get(
+        `/videos/${initiated.id}`,
+      );
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('VIDEO_NOT_FOUND');
+    }, 30000);
+
+    it('returns 200 for the owner regardless of status', async () => {
+      const token = await registerConfirmAndLogin();
+      const initiated = await initiateUpload(token);
+
+      const res = await request(app.getHttpServer())
+        .get(`/videos/${initiated.id}`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('rascunho');
+    }, 30000);
+
+    it('returns 200 for a pronto video requested anonymously', async () => {
+      const token = await registerConfirmAndLogin();
+      const initiated = await initiateUpload(token);
+      await dataSource
+        .getRepository(Video)
+        .update({ public_id: initiated.id }, { status: VideoStatus.PRONTO });
+
+      const res = await request(app.getHttpServer()).get(
+        `/videos/${initiated.id}`,
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('pronto');
+    }, 30000);
+
+    it('returns 404 for an unknown publicId', async () => {
+      const res = await request(app.getHttpServer()).get(
+        '/videos/doesnotexist',
+      );
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('VIDEO_NOT_FOUND');
+    });
   });
 });

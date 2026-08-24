@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   HttpCode,
   HttpStatus,
   Param,
@@ -17,11 +18,22 @@ import {
 import { ApiErrorEnvelope } from '../common/openapi/api-error-envelope.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtPayload } from '../auth/auth.types';
+import { Public } from '../auth/decorators/public.decorator';
 import { ChannelsService } from '../channels/channels.service';
 import { CompleteUploadDto } from './dto/complete-upload.dto';
 import { InitiateUploadDto } from './dto/initiate-upload.dto';
 import { VideoStatus } from './entities/video.entity';
 import { InitiateUploadResult, VideosService } from './videos.service';
+
+interface VideoSummary {
+  id: string;
+  status: VideoStatus;
+  original_filename: string;
+  duration_seconds: number | null;
+  width: number | null;
+  height: number | null;
+  created_at: Date;
+}
 
 @ApiTags('videos')
 @Controller('videos')
@@ -142,5 +154,60 @@ export class VideosController {
   ): Promise<void> {
     const channel = await this.channelsService.findByUserId(user.sub);
     return this.videosService.abortUpload(channel.id, publicId);
+  }
+
+  @Public()
+  @Get(':publicId')
+  @ApiOperation({
+    summary: 'Get a video status and metadata',
+    description:
+      "Returns the video's status and metadata. Visible to anyone once the video is ready; visible to its owner at any status.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Video status and metadata',
+    schema: {
+      properties: {
+        id: { type: 'string' },
+        status: { type: 'string' },
+        original_filename: { type: 'string' },
+        duration_seconds: { type: 'number', nullable: true },
+        width: { type: 'number', nullable: true },
+        height: { type: 'number', nullable: true },
+        created_at: { type: 'string', format: 'date-time' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Video not found or not visible to the requester',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  async getVideo(
+    @CurrentUser() user: JwtPayload | undefined,
+    @Param('publicId') publicId: string,
+  ): Promise<VideoSummary> {
+    const requesterChannelId = await this.resolveRequesterChannelId(user);
+    const video = await this.videosService.findByPublicId(
+      publicId,
+      requesterChannelId,
+    );
+    return {
+      id: video.public_id,
+      status: video.status,
+      original_filename: video.original_filename,
+      duration_seconds: video.duration_seconds,
+      width: video.width,
+      height: video.height,
+      created_at: video.created_at,
+    };
+  }
+
+  private async resolveRequesterChannelId(
+    user: JwtPayload | undefined,
+  ): Promise<string | undefined> {
+    if (!user) return undefined;
+    const channel = await this.channelsService.findByUserId(user.sub);
+    return channel.id;
   }
 }

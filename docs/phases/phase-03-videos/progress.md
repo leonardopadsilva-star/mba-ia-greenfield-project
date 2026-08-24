@@ -1,7 +1,7 @@
 # phase-03-videos — Progress
 
 **Status:** in_progress
-**SIs:** 8/11 completed
+**SIs:** 9/11 completed
 
 ### SI-03.1 — Dependencies, Config Namespaces, and Docker Compose
 - **Status:** completed
@@ -65,9 +65,12 @@
   - Manually started `npm run start:worker:dev` in the `worker` container to verify AC #4 empirically (unit tests can't prove real RabbitMQ connectivity): logged `Nest microservice successfully started`, then drained a real backlog of `video.processing` messages left over from earlier e2e test runs (SI-03.5–03.7 e2e tests emit real jobs since `AppModule` uses the real `QueueModule`, but no worker had ever consumed them). Most backlog entries hit `EntityNotFoundError` (their `Video` rows were already wiped by later tests' `cleanAllTables`) — expected for stale test artifacts, not a defect; one entry found its row, downloaded the (fake, non-video) e2e test payload from MinIO, and correctly failed at `ffprobe` into `status: erro` via the catch path, confirming the full pipeline wiring end-to-end. Stopped and re-killed the process afterward (it respawned once under `nest --watch` mid-kill) to leave the container idle per the project's "don't run the app unless asked" convention.
 
 ### SI-03.9 — GET /videos/:publicId (Status and Metadata)
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 40 passing (7 jwt-auth.guard unit incl. 2 new + 18 videos.service unit incl. 5 new findByPublicId cases + 15 videos e2e incl. 4 new GET cases)
+- **Observations:**
+  - Pre-existing `JwtAuthGuard` bypassed token verification entirely for `@Public()` routes (`if (isPublic) return true` before even reading the header), so `request.user` was never populated even with a valid Bearer token — this endpoint needs "anonymous OK, but owner sees any status," which requires exactly that. Extended the guard to best-effort-decode a Bearer token on `@Public()` routes (attach payload if valid, silently proceed unauthenticated otherwise, never throw) rather than adding a second parallel auth mechanism — additive change, inert for every other `@Public()` route since none of them read `request.user`.
+  - Removed `@ApiBearerAuth('access-token')` from the new endpoint's Swagger decorators — the project's own convention (`nestjs-controllers.md`) forbids that decorator on `@Public()` methods since it would falsely advertise the route as requiring auth.
+  - E2E test for the "pronto video visible anonymously" case writes `status: 'pronto'` directly via `dataSource.getRepository(Video).update(...)` rather than running the real worker — the worker is a separate process not started during API e2e runs; this is the standard way to reach an async-background-driven state in these tests.
 
 ### SI-03.10 — GET /videos/:publicId/stream and /download
 - **Status:** pending

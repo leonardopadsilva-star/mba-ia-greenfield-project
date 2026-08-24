@@ -124,6 +124,25 @@ export class VideosService {
     await this.videoRepository.remove(video);
   }
 
+  async findByPublicId(
+    publicId: string,
+    requesterChannelId?: string,
+  ): Promise<Video> {
+    const video = await this.videoRepository.findOne({
+      where: { public_id: publicId },
+    });
+    if (!video) {
+      throw new VideoNotFoundException();
+    }
+    const isOwner =
+      requesterChannelId !== undefined &&
+      video.channel_id === requesterChannelId;
+    if (video.status !== VideoStatus.PRONTO && !isOwner) {
+      throw new VideoNotFoundException();
+    }
+    return video;
+  }
+
   private async findOwnedVideo(
     channelId: string,
     publicId: string,

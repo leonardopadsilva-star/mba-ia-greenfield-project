@@ -298,4 +298,58 @@ describe('VideosService', () => {
       expect(repository.remove).toHaveBeenCalledWith(video);
     });
   });
+
+  describe('findByPublicId', () => {
+    it('throws VideoNotFoundException when the video does not exist', async () => {
+      const repository: any = { findOne: jest.fn().mockResolvedValue(null) };
+      const service = new VideosService(repository, {} as any, makeProducer());
+
+      await expect(
+        service.findByPublicId('missing', 'channel-1'),
+      ).rejects.toThrow(VideoNotFoundException);
+    });
+
+    it('returns a pronto video for an anonymous requester', async () => {
+      const video = makeVideo({ status: VideoStatus.PRONTO });
+      const repository: any = { findOne: jest.fn().mockResolvedValue(video) };
+      const service = new VideosService(repository, {} as any, makeProducer());
+
+      const result = await service.findByPublicId(video.public_id);
+
+      expect(result).toBe(video);
+    });
+
+    it('returns a non-pronto video for its owner', async () => {
+      const video = makeVideo({ status: VideoStatus.PROCESSANDO });
+      const repository: any = { findOne: jest.fn().mockResolvedValue(video) };
+      const service = new VideosService(repository, {} as any, makeProducer());
+
+      const result = await service.findByPublicId(
+        video.public_id,
+        video.channel_id,
+      );
+
+      expect(result).toBe(video);
+    });
+
+    it('throws VideoNotFoundException for a non-pronto video requested anonymously', async () => {
+      const video = makeVideo({ status: VideoStatus.PROCESSANDO });
+      const repository: any = { findOne: jest.fn().mockResolvedValue(video) };
+      const service = new VideosService(repository, {} as any, makeProducer());
+
+      await expect(
+        service.findByPublicId(video.public_id),
+      ).rejects.toThrow(VideoNotFoundException);
+    });
+
+    it('throws VideoNotFoundException for a non-pronto video requested by a non-owner', async () => {
+      const video = makeVideo({ status: VideoStatus.PROCESSANDO });
+      const repository: any = { findOne: jest.fn().mockResolvedValue(video) };
+      const service = new VideosService(repository, {} as any, makeProducer());
+
+      await expect(
+        service.findByPublicId(video.public_id, 'other-channel'),
+      ).rejects.toThrow(VideoNotFoundException);
+    });
+  });
 });
