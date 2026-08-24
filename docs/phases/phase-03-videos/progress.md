@@ -1,7 +1,7 @@
 # phase-03-videos — Progress
 
 **Status:** in_progress
-**SIs:** 3/11 completed
+**SIs:** 4/11 completed
 
 ### SI-03.1 — Dependencies, Config Namespaces, and Docker Compose
 - **Status:** completed
@@ -25,9 +25,11 @@
   - Used native `fetch` (Node 22) to exercise the presigned URLs end-to-end (PUT a part, GET with Range) rather than mocking the HTTP layer, per the project's real-capture-service testing convention.
 
 ### SI-03.4 — Queue Producer (RabbitMQ)
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 3 passing
+- **Observations:**
+  - `ClientProxy#emit()` is a "hot" Observable that in practice only reliably publishes once subscribed (NestJS GitHub issue #2651/#625) — wrapped it in `lastValueFrom()` so the producer both triggers delivery and surfaces broker errors as a rejected promise, instead of a silent fire-and-forget call.
+  - First test run failed all 3 tests with "Nest can't resolve dependencies... dependency at index [0] appears to be undefined" — root cause was a circular import: `queue.module.ts` imported `VideoProcessingProducer` while `video-processing.producer.ts` imported the `VIDEO_PROCESSING_SERVICE` token back from `queue.module.ts`, so the `@Inject()` decorator saw `undefined` at module-evaluation time. Fixed by extracting the token into `queue.constants.ts` per the project's constants convention — not just a test-setup issue, this would have broken the real app too.
 
 ### SI-03.5 — POST /videos (Initiate Multipart Upload)
 - **Status:** pending
