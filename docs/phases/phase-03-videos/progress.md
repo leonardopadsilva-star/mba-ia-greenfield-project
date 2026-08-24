@@ -1,7 +1,7 @@
 # phase-03-videos — Progress
 
 **Status:** in_progress
-**SIs:** 5/11 completed
+**SIs:** 6/11 completed
 
 ### SI-03.1 — Dependencies, Config Namespaces, and Docker Compose
 - **Status:** completed
@@ -41,9 +41,12 @@
   - First test run failed all 3 non-channels suites with `SyntaxError: Cannot use import statement outside a module` from `node_modules/nanoid/index.js` — `nanoid@5` is pure ESM and Jest's default `transformIgnorePatterns` skips `node_modules`, so `require()` inside Jest's sandbox couldn't load it (unlike plain `node -e "require('nanoid')"`, which works because Node 22+/25 has native synchronous ESM-interop for `require()` that Jest's own module loader doesn't use). Fixed by adding `"transformIgnorePatterns": ["/node_modules/(?!(nanoid)/)"]` to both the `jest` block in `package.json` and `test/jest-e2e.json`, letting ts-jest transpile nanoid's ESM to CJS.
 
 ### SI-03.6 — POST /videos/:publicId/complete
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 18 passing (9 videos.service unit incl. 5 new completeUpload cases + 2 videos integration incl. 1 new + 7 videos e2e incl. 4 new)
+- **Observations:**
+  - Plan's API Contracts specifies `Response 200` for this endpoint, but NestJS defaults `@Post()` to 201 — added explicit `@HttpCode(HttpStatus.OK)`, matching the same pattern already used by `AuthController.login`.
+  - `VideosService`'s constructor grew a third dependency (`VideoProcessingProducer`); updated all existing test instantiations (unit `new VideosService(...)` calls, integration `Test.createTestingModule` providers) rather than letting them silently pass `undefined` for the new param.
+  - The e2e suite now exercises the real RabbitMQ producer end-to-end (no mock) since `AppModule` → `VideosModule` → `QueueModule` connects to the actual broker; the integration test instead mocks `VideoProcessingProducer` since its purpose is the DB/storage contract, not queue delivery (already covered by the unit test's "emits exactly one processing job" case and by SI-03.4's own producer tests).
 
 ### SI-03.7 — DELETE /videos/:publicId (Abort Upload)
 - **Status:** pending

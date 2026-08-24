@@ -5,3 +5,31 @@ export class FileTooLargeException extends DomainException {
     super('FILE_TOO_LARGE', 400, 'File exceeds the 10GB limit');
   }
 }
+
+export class VideoNotFoundException extends DomainException {
+  constructor() {
+    super('VIDEO_NOT_FOUND', 404, 'Video not found');
+  }
+}
+
+export class ForbiddenVideoAccessException extends DomainException {
+  constructor() {
+    super('FORBIDDEN', 403, 'You do not own this video');
+  }
+}
+
+export class UploadAlreadyCompletedException extends DomainException {
+  constructor() {
+    super('UPLOAD_ALREADY_COMPLETED', 409, 'Upload already completed');
+  }
+}
+
+export class MultipartCompletionFailedException extends DomainException {
+  constructor() {
+    super(
+      'MULTIPART_COMPLETION_FAILED',
+      502,
+      'Failed to finalize upload with storage',
+    );
+  }
+}

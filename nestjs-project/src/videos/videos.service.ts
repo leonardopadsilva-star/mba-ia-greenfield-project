@@ -3,10 +3,18 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { nanoid } from 'nanoid';
 import { Repository } from 'typeorm';
+import { VideoProcessingProducer } from '../queue/video-processing.producer';
 import { StorageService, UploadPartUrl } from '../storage/storage.service';
+import { CompleteUploadDto } from './dto/complete-upload.dto';
 import { InitiateUploadDto } from './dto/initiate-upload.dto';
-import { Video } from './entities/video.entity';
-import { FileTooLargeException } from './exceptions/video.exceptions';
+import { Video, VideoStatus } from './entities/video.entity';
+import {
+  FileTooLargeException,
+  ForbiddenVideoAccessException,
+  MultipartCompletionFailedException,
+  UploadAlreadyCompletedException,
+  VideoNotFoundException,
+} from './exceptions/video.exceptions';
 
 const TEN_GB_BYTES = 10 * 1024 * 1024 * 1024;
 const PART_SIZE_BYTES = 10 * 1024 * 1024;
@@ -29,6 +37,7 @@ export class VideosService {
     @InjectRepository(Video)
     private readonly videoRepository: Repository<Video>,
     private readonly storageService: StorageService,
+    private readonly videoProcessingProducer: VideoProcessingProducer,
   ) {}
 
   async initiateUpload(
@@ -67,5 +76,53 @@ export class VideosService {
     );
 
     return { id: publicId, upload_id: uploadId, parts };
+  }
+
+  async completeUpload(
+    channelId: string,
+    publicId: string,
+    dto: CompleteUploadDto,
+  ): Promise<{ id: string; status: VideoStatus }> {
+    const video = await this.findOwnedVideo(channelId, publicId);
+    if (video.status !== VideoStatus.RASCUNHO) {
+      throw new UploadAlreadyCompletedException();
+    }
+
+    try {
+      await this.storageService.completeMultipartUpload(
+        video.original_key!,
+        video.upload_id!,
+        dto.parts,
+      );
+    } catch {
+      throw new MultipartCompletionFailedException();
+    }
+
+    video.status = VideoStatus.PROCESSANDO;
+    video.upload_id = null;
+    await this.videoRepository.save(video);
+
+    await this.videoProcessingProducer.emitProcessingJob(
+      video.id,
+      video.original_key!,
+    );
+
+    return { id: video.public_id, status: video.status };
+  }
+
+  private async findOwnedVideo(
+    channelId: string,
+    publicId: string,
+  ): Promise<Video> {
+    const video = await this.videoRepository.findOne({
+      where: { public_id: publicId },
+    });
+    if (!video) {
+      throw new VideoNotFoundException();
+    }
+    if (video.channel_id !== channelId) {
+      throw new ForbiddenVideoAccessException();
+    }
+    return video;
   }
 }

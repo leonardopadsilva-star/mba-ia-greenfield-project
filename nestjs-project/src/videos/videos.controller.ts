@@ -1,4 +1,11 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -10,7 +17,9 @@ import { ApiErrorEnvelope } from '../common/openapi/api-error-envelope.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtPayload } from '../auth/auth.types';
 import { ChannelsService } from '../channels/channels.service';
+import { CompleteUploadDto } from './dto/complete-upload.dto';
 import { InitiateUploadDto } from './dto/initiate-upload.dto';
+import { VideoStatus } from './entities/video.entity';
 import { InitiateUploadResult, VideosService } from './videos.service';
 
 @ApiTags('videos')
@@ -58,5 +67,47 @@ export class VideosController {
   ): Promise<InitiateUploadResult> {
     const channel = await this.channelsService.findByUserId(user.sub);
     return this.videosService.initiateUpload(channel.id, dto);
+  }
+
+  @Post(':publicId/complete')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Complete a video upload',
+    description:
+      'Finalizes the multipart upload with storage and enqueues the video for processing.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Upload completed — the video is now processing',
+    schema: {
+      properties: {
+        id: { type: 'string' },
+        status: { type: 'string', example: 'processando' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Video not found',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'The authenticated user does not own this video',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'The upload was already completed',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  async completeUpload(
+    @CurrentUser() user: JwtPayload,
+    @Param('publicId') publicId: string,
+    @Body() dto: CompleteUploadDto,
+  ): Promise<{ id: string; status: VideoStatus }> {
+    const channel = await this.channelsService.findByUserId(user.sub);
+    return this.videosService.completeUpload(channel.id, publicId, dto);
   }
 }

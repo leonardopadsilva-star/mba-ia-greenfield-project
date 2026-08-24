@@ -116,4 +116,89 @@ describe('Videos (e2e)', () => {
       expect(res.status).toBe(401);
     });
   });
+
+  describe('POST /videos/:publicId/complete', () => {
+    async function initiateUpload(
+      token: string,
+      sizeBytes = 1024,
+    ): Promise<{ id: string; parts: { part_number: number; url: string }[] }> {
+      const res = await request(app.getHttpServer())
+        .post('/videos')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          original_filename: 'video.mp4',
+          content_type: 'video/mp4',
+          size_bytes: sizeBytes,
+        });
+      return res.body;
+    }
+
+    it('returns 200 with status processando for a valid completion', async () => {
+      const token = await registerConfirmAndLogin();
+      const initiated = await initiateUpload(token);
+      const putResponse = await fetch(initiated.parts[0].url, {
+        method: 'PUT',
+        body: 'a'.repeat(1024),
+      });
+      const etag = putResponse.headers.get('etag')!;
+
+      const res = await request(app.getHttpServer())
+        .post(`/videos/${initiated.id}/complete`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ parts: [{ part_number: 1, etag }] });
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('processando');
+    }, 30000);
+
+    it('returns 404 VIDEO_NOT_FOUND for an unknown publicId', async () => {
+      const token = await registerConfirmAndLogin();
+
+      const res = await request(app.getHttpServer())
+        .post('/videos/doesnotexist/complete')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ parts: [{ part_number: 1, etag: 'x' }] });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('VIDEO_NOT_FOUND');
+    });
+
+    it('returns 403 FORBIDDEN when the caller does not own the video', async () => {
+      const ownerToken = await registerConfirmAndLogin();
+      const initiated = await initiateUpload(ownerToken);
+      const otherToken = await registerConfirmAndLogin();
+
+      const res = await request(app.getHttpServer())
+        .post(`/videos/${initiated.id}/complete`)
+        .set('Authorization', `Bearer ${otherToken}`)
+        .send({ parts: [{ part_number: 1, etag: 'x' }] });
+
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('FORBIDDEN');
+    }, 30000);
+
+    it('returns 409 UPLOAD_ALREADY_COMPLETED when completing twice', async () => {
+      const token = await registerConfirmAndLogin();
+      const initiated = await initiateUpload(token);
+      const putResponse = await fetch(initiated.parts[0].url, {
+        method: 'PUT',
+        body: 'a'.repeat(1024),
+      });
+      const etag = putResponse.headers.get('etag')!;
+      const parts = [{ part_number: 1, etag }];
+
+      await request(app.getHttpServer())
+        .post(`/videos/${initiated.id}/complete`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ parts });
+
+      const res = await request(app.getHttpServer())
+        .post(`/videos/${initiated.id}/complete`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ parts });
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe('UPLOAD_ALREADY_COMPLETED');
+    }, 30000);
+  });
 });
