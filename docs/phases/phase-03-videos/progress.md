@@ -1,7 +1,7 @@
 # phase-03-videos — Progress
 
 **Status:** in_progress
-**SIs:** 2/11 completed
+**SIs:** 3/11 completed
 
 ### SI-03.1 — Dependencies, Config Namespaces, and Docker Compose
 - **Status:** completed
@@ -18,9 +18,11 @@
   - `size_bytes` maps to TS `string | null` (bigint columns are returned as strings by node-postgres/TypeORM to avoid unsafe-integer precision loss) — intentional, not a typo.
 
 ### SI-03.3 — StorageService (Presigned Multipart Upload and Presigned GET)
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 5 passing
+- **Observations:**
+  - Integration test ensures the `videos` MinIO bucket exists in `beforeAll` (`CreateBucketCommand`, tolerating `BucketAlreadyOwnedByYou`) rather than baking bucket provisioning into `StorageService` itself — keeps the service focused on the multipart/presign contract; bucket lifecycle is a deploy/infra concern.
+  - Used native `fetch` (Node 22) to exercise the presigned URLs end-to-end (PUT a part, GET with Range) rather than mocking the HTTP layer, per the project's real-capture-service testing convention.
 
 ### SI-03.4 — Queue Producer (RabbitMQ)
 - **Status:** pending
