@@ -3,6 +3,16 @@
 **Status:** completed
 **SIs:** 11/11 completed
 
+### Post-completion manual verification (real 10GB upload)
+- **Status:** completed
+- **Tests:** 20 + 49 passing (regression tests for both fixes below) + full suite reconfirmed (34/34 unit+integration, 5/5 e2e)
+- **Observations:**
+  - Ran a real end-to-end test with a genuine ~9.5GB video (synthetic rawvideo generated via ffmpeg, not a mock) through the full pipeline: 973 real multipart parts uploaded to MinIO, real worker downloaded and ran ffprobe/ffmpeg on it, reached `status: pronto` with correct metadata (`duration_seconds: 984`, `width: 640`, `height: 360`). Verified independently of the API response — queried Postgres directly and ran `mc stat` against MinIO to confirm the 9.5GB original object and the generated thumbnail JPEG genuinely exist (not just trusting `200 OK`).
+  - **Bug found:** `ThrottlerGuard` is registered via `APP_GUARD` inside `AuthModule`, making it global (applies to every route, not just `/auth/*`, contrary to what the SI-02.13 comment assumed) — broke `GET /videos/:publicId` status polling with `429` after 10 requests/min during the real test. Fixed with `@SkipThrottle()` on `VideosController`, matching `AppController`'s existing opt-out.
+  - **Bug found:** `VideosService.completeUpload` never populated `Video.size_bytes`, despite the Data Model documenting it as "confirmed at multipart completion." No test anywhere asserted on this field, so it went unnoticed through every SI. Fixed by adding `StorageService.getObjectSize()` (`HeadObjectCommand`) and calling it right after `CompleteMultipartUploadCommand` succeeds.
+  - Both bugs were only discoverable through genuine end-to-end manual testing against real infrastructure — neither was caught by 190+ passing automated tests, because the automated tests either cleared throttler storage before every test (masking the global-scope issue) or never asserted on `size_bytes` at all. Worth remembering: automated test coverage and manual exploratory testing catch different bug classes.
+  - Local testing note: presigned URLs from `POST /videos` point at the Docker-internal `minio` hostname, which the host machine's browser/curl/Postman cannot resolve without adding `127.0.0.1 minio` to the OS hosts file (requires admin rights, not something this session can do unattended) — or by running the test client inside a container on the same Docker network instead.
+
 ### SI-03.1 — Dependencies, Config Namespaces, and Docker Compose
 - **Status:** completed
 - **Tests:** no tests (Infra)
