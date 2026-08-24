@@ -212,6 +212,28 @@ describe('VideosService', () => {
       expect(repository.save).not.toHaveBeenCalled();
     });
 
+    it('wraps a getObjectSize failure as MultipartCompletionFailedException too', async () => {
+      const video = makeVideo();
+      const repository: any = {
+        findOne: jest.fn().mockResolvedValue(video),
+        save: jest.fn(),
+      };
+      const storageService: any = {
+        completeMultipartUpload: jest.fn().mockResolvedValue(undefined),
+        getObjectSize: jest.fn().mockRejectedValue(new Error('object not found')),
+      };
+      const service = new VideosService(
+        repository,
+        storageService,
+        makeProducer(),
+      );
+
+      await expect(
+        service.completeUpload('channel-1', video.public_id, dto),
+      ).rejects.toThrow(MultipartCompletionFailedException);
+      expect(repository.save).not.toHaveBeenCalled();
+    });
+
     it('transitions to processando, clears upload_id, and emits exactly one processing job', async () => {
       const video = makeVideo();
       const repository: any = {
@@ -220,6 +242,7 @@ describe('VideosService', () => {
       };
       const storageService: any = {
         completeMultipartUpload: jest.fn().mockResolvedValue(undefined),
+        getObjectSize: jest.fn().mockResolvedValue(2048),
       };
       const producer = makeProducer();
       const service = new VideosService(repository, storageService, producer);
@@ -231,10 +254,14 @@ describe('VideosService', () => {
       );
 
       expect(result.status).toBe(VideoStatus.PROCESSANDO);
+      expect(storageService.getObjectSize).toHaveBeenCalledWith(
+        video.original_key,
+      );
       expect(repository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           status: VideoStatus.PROCESSANDO,
           upload_id: null,
+          size_bytes: '2048',
         }),
       );
       expect(producer.emitProcessingJob).toHaveBeenCalledTimes(1);

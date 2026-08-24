@@ -68,6 +68,9 @@ describe('StorageService (integration)', () => {
       new HeadObjectCommand({ Bucket: bucket, Key: key }),
     );
     expect(head.ContentLength).toBe(body.length);
+
+    const size = await service.getObjectSize(key);
+    expect(size).toBe(body.length);
   }, 30000);
 
   it('should abort a multipart upload and leave no object behind', async () => {

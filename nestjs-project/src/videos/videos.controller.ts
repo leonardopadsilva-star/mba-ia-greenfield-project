@@ -16,6 +16,7 @@ import {
   ApiTags,
   getSchemaPath,
 } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { ApiErrorEnvelope } from '../common/openapi/api-error-envelope.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtPayload } from '../auth/auth.types';
@@ -36,6 +37,7 @@ interface VideoSummary {
   created_at: Date;
 }
 
+@SkipThrottle()
 @ApiTags('videos')
 @Controller('videos')
 export class VideosController {

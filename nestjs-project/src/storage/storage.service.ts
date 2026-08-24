@@ -3,6 +3,7 @@ import {
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
   UploadPartCommand,
@@ -110,6 +111,13 @@ export class StorageService {
         },
       }),
     );
+  }
+
+  async getObjectSize(key: string): Promise<number> {
+    const result = await this.client.send(
+      new HeadObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
+    return result.ContentLength!;
   }
 
   async abortMultipartUpload(key: string, uploadId: string): Promise<void> {

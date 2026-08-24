@@ -92,18 +92,21 @@ export class VideosService {
       throw new UploadAlreadyCompletedException();
     }
 
+    let sizeBytes: number;
     try {
       await this.storageService.completeMultipartUpload(
         video.original_key!,
         video.upload_id!,
         dto.parts,
       );
+      sizeBytes = await this.storageService.getObjectSize(video.original_key!);
     } catch {
       throw new MultipartCompletionFailedException();
     }
 
     video.status = VideoStatus.PROCESSANDO;
     video.upload_id = null;
+    video.size_bytes = String(sizeBytes);
     await this.videoRepository.save(video);
 
     await this.videoProcessingProducer.emitProcessingJob(

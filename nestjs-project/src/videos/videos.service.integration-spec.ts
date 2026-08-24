@@ -125,6 +125,7 @@ describe('VideosService (integration)', () => {
     });
     expect(saved!.status).toBe(VideoStatus.PROCESSANDO);
     expect(saved!.upload_id).toBeNull();
+    expect(saved!.size_bytes).toBe('1024');
     expect(producer.emitProcessingJob).toHaveBeenCalledTimes(1);
   }, 30000);
 });

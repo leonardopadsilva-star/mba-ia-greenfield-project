@@ -417,4 +417,31 @@ describe('Videos (e2e)', () => {
       expect(downloadRes.body.error).toBe('VIDEO_NOT_FOUND');
     });
   });
+
+  describe('Rate limiting', () => {
+    it('is not subject to the global 10 req/min auth throttle (status polling use case)', async () => {
+      // The global ThrottlerGuard is registered via APP_GUARD in AuthModule,
+      // which makes it apply to every route in the app, not just /auth/* —
+      // VideosController must opt out via @SkipThrottle() so a client can
+      // poll GET /videos/:publicId for processing status without being
+      // rate-limited after 10 requests/min.
+      const token = await registerConfirmAndLogin();
+      const res = await request(app.getHttpServer())
+        .post('/videos')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          original_filename: 'video.mp4',
+          content_type: 'video/mp4',
+          size_bytes: 1024,
+        });
+      const publicId = res.body.id;
+
+      for (let i = 0; i < 15; i++) {
+        const pollRes = await request(app.getHttpServer())
+          .get(`/videos/${publicId}`)
+          .set('Authorization', `Bearer ${token}`);
+        expect(pollRes.status).not.toBe(429);
+      }
+    }, 30000);
+  });
 });
