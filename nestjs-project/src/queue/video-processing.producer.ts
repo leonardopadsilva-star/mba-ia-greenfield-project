@@ -10,10 +10,7 @@ export class VideoProcessingProducer {
     private readonly client: ClientProxy,
   ) {}
 
-  async emitProcessingJob(
-    videoId: string,
-    originalKey: string,
-  ): Promise<void> {
+  async emitProcessingJob(videoId: string, originalKey: string): Promise<void> {
     // ClientProxy#emit() is a "hot" Observable that only reliably publishes
     // once subscribed — awaiting it via lastValueFrom both triggers delivery
     // and surfaces broker errors as a rejected promise.

@@ -83,8 +83,9 @@ describe('Videos full flow (e2e)', () => {
     let capturedToken = '';
     jest
       .spyOn(mailServiceInstance, 'sendConfirmationEmail')
-      .mockImplementationOnce(async (_e: string, _n: string, t: string) => {
+      .mockImplementationOnce((_e: string, _n: string, t: string) => {
         capturedToken = t;
+        return Promise.resolve();
       });
     await request(app.getHttpServer())
       .post('/auth/register')
@@ -98,64 +99,60 @@ describe('Videos full flow (e2e)', () => {
     return res.body.access_token;
   }
 
-  it(
-    'completes the full upload -> processing -> playback flow',
-    async () => {
-      const token = await registerConfirmAndLogin();
+  it('completes the full upload -> processing -> playback flow', async () => {
+    const token = await registerConfirmAndLogin();
 
-      const initiateRes = await request(app.getHttpServer())
-        .post('/videos')
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-          original_filename: 'fixture.mp4',
-          content_type: 'video/mp4',
-          size_bytes: fixtureBuffer.length,
-        });
-      expect(initiateRes.status).toBe(201);
-      const { id: publicId, parts } = initiateRes.body;
-
-      const putResponse = await fetch(parts[0].url, {
-        method: 'PUT',
-        body: new Blob([Uint8Array.from(fixtureBuffer)]),
+    const initiateRes = await request(app.getHttpServer())
+      .post('/videos')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        original_filename: 'fixture.mp4',
+        content_type: 'video/mp4',
+        size_bytes: fixtureBuffer.length,
       });
-      expect(putResponse.status).toBe(200);
-      const etag = putResponse.headers.get('etag')!;
+    expect(initiateRes.status).toBe(201);
+    const { id: publicId, parts } = initiateRes.body;
 
-      const completeRes = await request(app.getHttpServer())
-        .post(`/videos/${publicId}/complete`)
-        .set('Authorization', `Bearer ${token}`)
-        .send({ parts: [{ part_number: 1, etag }] });
-      expect(completeRes.status).toBe(200);
-      expect(completeRes.body.status).toBe('processando');
+    const putResponse = await fetch(parts[0].url, {
+      method: 'PUT',
+      body: new Blob([Uint8Array.from(fixtureBuffer)]),
+    });
+    expect(putResponse.status).toBe(200);
+    const etag = putResponse.headers.get('etag')!;
 
-      let status = 'processando';
-      let durationSeconds: number | null = null;
-      for (let i = 0; i < 30 && status === 'processando'; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        const getRes = await request(app.getHttpServer())
-          .get(`/videos/${publicId}`)
-          .set('Authorization', `Bearer ${token}`);
-        status = getRes.body.status;
-        durationSeconds = getRes.body.duration_seconds;
-      }
+    const completeRes = await request(app.getHttpServer())
+      .post(`/videos/${publicId}/complete`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ parts: [{ part_number: 1, etag }] });
+    expect(completeRes.status).toBe(200);
+    expect(completeRes.body.status).toBe('processando');
 
-      expect(status).toBe('pronto');
-      expect(durationSeconds).toBe(2);
+    let status = 'processando';
+    let durationSeconds: number | null = null;
+    for (let i = 0; i < 30 && status === 'processando'; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const getRes = await request(app.getHttpServer())
+        .get(`/videos/${publicId}`)
+        .set('Authorization', `Bearer ${token}`);
+      status = getRes.body.status;
+      durationSeconds = getRes.body.duration_seconds;
+    }
 
-      const streamRes = await request(app.getHttpServer()).get(
-        `/videos/${publicId}/stream`,
-      );
-      expect(streamRes.status).toBe(302);
-      expect(streamRes.headers.location).toBeTruthy();
+    expect(status).toBe('pronto');
+    expect(durationSeconds).toBe(2);
 
-      const downloadRes = await request(app.getHttpServer()).get(
-        `/videos/${publicId}/download`,
-      );
-      expect(downloadRes.status).toBe(302);
-      expect(decodeURIComponent(downloadRes.headers.location)).toContain(
-        'attachment',
-      );
-    },
-    60000,
-  );
+    const streamRes = await request(app.getHttpServer()).get(
+      `/videos/${publicId}/stream`,
+    );
+    expect(streamRes.status).toBe(302);
+    expect(streamRes.headers.location).toBeTruthy();
+
+    const downloadRes = await request(app.getHttpServer()).get(
+      `/videos/${publicId}/download`,
+    );
+    expect(downloadRes.status).toBe(302);
+    expect(decodeURIComponent(downloadRes.headers.location)).toContain(
+      'attachment',
+    );
+  }, 60000);
 });

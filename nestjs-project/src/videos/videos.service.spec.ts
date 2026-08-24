@@ -250,9 +250,9 @@ describe('VideosService', () => {
       const repository: any = { findOne: jest.fn().mockResolvedValue(null) };
       const service = new VideosService(repository, {} as any, makeProducer());
 
-      await expect(
-        service.abortUpload('channel-1', 'missing'),
-      ).rejects.toThrow(VideoNotFoundException);
+      await expect(service.abortUpload('channel-1', 'missing')).rejects.toThrow(
+        VideoNotFoundException,
+      );
     });
 
     it('throws ForbiddenVideoAccessException when the caller does not own the video', async () => {
@@ -338,9 +338,9 @@ describe('VideosService', () => {
       const repository: any = { findOne: jest.fn().mockResolvedValue(video) };
       const service = new VideosService(repository, {} as any, makeProducer());
 
-      await expect(
-        service.findByPublicId(video.public_id),
-      ).rejects.toThrow(VideoNotFoundException);
+      await expect(service.findByPublicId(video.public_id)).rejects.toThrow(
+        VideoNotFoundException,
+      );
     });
 
     it('throws VideoNotFoundException for a non-pronto video requested by a non-owner', async () => {
@@ -360,9 +360,9 @@ describe('VideosService', () => {
       const repository: any = { findOne: jest.fn().mockResolvedValue(video) };
       const service = new VideosService(repository, {} as any, makeProducer());
 
-      await expect(
-        service.getStreamUrl(video.public_id),
-      ).rejects.toThrow(VideoNotFoundException);
+      await expect(service.getStreamUrl(video.public_id)).rejects.toThrow(
+        VideoNotFoundException,
+      );
     });
 
     it('throws VideoNotReadyException when the video is visible but not pronto (even for the owner)', async () => {
@@ -379,7 +379,9 @@ describe('VideosService', () => {
       const video = makeVideo({ status: VideoStatus.PRONTO });
       const repository: any = { findOne: jest.fn().mockResolvedValue(video) };
       const storageService: any = {
-        getPresignedGetUrl: jest.fn().mockResolvedValue('https://signed-stream'),
+        getPresignedGetUrl: jest
+          .fn()
+          .mockResolvedValue('https://signed-stream'),
       };
       const service = new VideosService(
         repository,

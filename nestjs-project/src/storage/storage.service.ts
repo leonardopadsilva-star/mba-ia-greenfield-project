@@ -126,10 +126,7 @@ export class StorageService {
     const result = await this.client.send(
       new GetObjectCommand({ Bucket: this.bucket, Key: key }),
     );
-    await pipeline(
-      result.Body as Readable,
-      createWriteStream(destPath),
-    );
+    await pipeline(result.Body as Readable, createWriteStream(destPath));
   }
 
   async uploadFile(

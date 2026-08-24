@@ -36,11 +36,7 @@ export class MultipartCompletionFailedException extends DomainException {
 
 export class InvalidUploadStateException extends DomainException {
   constructor() {
-    super(
-      'INVALID_UPLOAD_STATE',
-      409,
-      'Video is not in an abortable state',
-    );
+    super('INVALID_UPLOAD_STATE', 409, 'Video is not in an abortable state');
   }
 }
 

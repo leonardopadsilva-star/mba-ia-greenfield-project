@@ -9,7 +9,8 @@ async function bootstrap() {
       transport: Transport.RMQ,
       options: {
         urls: [process.env.RABBITMQ_URL!],
-        queue: process.env.RABBITMQ_VIDEO_PROCESSING_QUEUE || 'video_processing',
+        queue:
+          process.env.RABBITMQ_VIDEO_PROCESSING_QUEUE || 'video_processing',
         queueOptions: { durable: true },
         noAck: false,
       },

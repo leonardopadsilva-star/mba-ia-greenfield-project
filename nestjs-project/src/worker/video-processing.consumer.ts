@@ -7,6 +7,12 @@ interface VideoProcessingPayload {
   originalKey: string;
 }
 
+// amqplib ships no TypeScript definitions, so RmqContext#getChannelRef()
+// is typed `any` upstream. Narrow it to just the method this file calls.
+interface AckableChannel {
+  ack(message: unknown): void;
+}
+
 @Controller()
 export class VideoProcessingConsumer {
   constructor(
@@ -19,12 +25,9 @@ export class VideoProcessingConsumer {
     @Ctx() context: RmqContext,
   ): Promise<void> {
     try {
-      await this.videoProcessingService.process(
-        data.videoId,
-        data.originalKey,
-      );
+      await this.videoProcessingService.process(data.videoId, data.originalKey);
     } finally {
-      const channel = context.getChannelRef();
+      const channel = context.getChannelRef() as AckableChannel;
       const originalMsg = context.getMessage();
       channel.ack(originalMsg);
     }

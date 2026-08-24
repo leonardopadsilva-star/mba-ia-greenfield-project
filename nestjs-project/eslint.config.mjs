@@ -32,4 +32,23 @@ export default tseslint.config(
       "prettier/prettier": ["error", { endOfLine: "auto" }],
     },
   },
+  {
+    // Test files legitimately deal with loosely-typed values (mocks built as
+    // `any`, third-party response bodies like supertest's `Response.body`)
+    // that don't merit the same rigor as production `src/` code. Extends the
+    // same relaxed posture already applied above (no-explicit-any: off,
+    // no-unsafe-argument: warn) to the remaining no-unsafe-* rules, scoped to
+    // test files only.
+    files: [
+      '**/*.spec.ts',
+      '**/*.integration-spec.ts',
+      'test/**/*.ts',
+    ],
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+    },
+  },
 );

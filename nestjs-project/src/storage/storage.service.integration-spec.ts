@@ -37,7 +37,9 @@ describe('StorageService (integration)', () => {
     await ensureBucketExists();
 
     const moduleRef = await Test.createTestingModule({
-      imports: [ConfigModule.forRoot({ isGlobal: true, load: [storageConfig] })],
+      imports: [
+        ConfigModule.forRoot({ isGlobal: true, load: [storageConfig] }),
+      ],
       providers: [StorageService],
     }).compile();
 
@@ -46,10 +48,7 @@ describe('StorageService (integration)', () => {
 
   it('should round-trip a multipart upload and confirm the object exists', async () => {
     const key = `test/${Date.now()}-multipart.txt`;
-    const { uploadId } = await service.createMultipartUpload(
-      key,
-      'text/plain',
-    );
+    const { uploadId } = await service.createMultipartUpload(key, 'text/plain');
     expect(uploadId).toBeTruthy();
 
     const [{ url }] = await service.getUploadPartUrls(key, uploadId, 1);
@@ -73,10 +72,7 @@ describe('StorageService (integration)', () => {
 
   it('should abort a multipart upload and leave no object behind', async () => {
     const key = `test/${Date.now()}-abort.txt`;
-    const { uploadId } = await service.createMultipartUpload(
-      key,
-      'text/plain',
-    );
+    const { uploadId } = await service.createMultipartUpload(key, 'text/plain');
 
     await service.abortMultipartUpload(key, uploadId);
 
@@ -87,10 +83,7 @@ describe('StorageService (integration)', () => {
 
   it('should return a presigned GET URL that serves 206 Partial Content on a Range request', async () => {
     const key = `test/${Date.now()}-range.txt`;
-    const { uploadId } = await service.createMultipartUpload(
-      key,
-      'text/plain',
-    );
+    const { uploadId } = await service.createMultipartUpload(key, 'text/plain');
     const [{ url: putUrl }] = await service.getUploadPartUrls(key, uploadId, 1);
     const body = 'range-content-'.repeat(100);
     const putResponse = await fetch(putUrl, { method: 'PUT', body });
@@ -109,10 +102,7 @@ describe('StorageService (integration)', () => {
 
   it('should return a presigned GET URL with attachment content-disposition', async () => {
     const key = `test/${Date.now()}-download.txt`;
-    const { uploadId } = await service.createMultipartUpload(
-      key,
-      'text/plain',
-    );
+    const { uploadId } = await service.createMultipartUpload(key, 'text/plain');
     const [{ url: putUrl }] = await service.getUploadPartUrls(key, uploadId, 1);
     const putResponse = await fetch(putUrl, { method: 'PUT', body: 'x' });
     const etag = putResponse.headers.get('etag')!;
@@ -126,8 +116,6 @@ describe('StorageService (integration)', () => {
     });
     const response = await fetch(downloadUrl);
 
-    expect(response.headers.get('content-disposition')).toContain(
-      'attachment',
-    );
+    expect(response.headers.get('content-disposition')).toContain('attachment');
   }, 30000);
 });

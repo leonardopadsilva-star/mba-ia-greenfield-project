@@ -140,7 +140,9 @@ describe('VideoProcessingService', () => {
       save: jest.fn((v) => v),
     };
     const storageService: any = {
-      downloadToFile: jest.fn().mockRejectedValue(new Error('bucket unreachable')),
+      downloadToFile: jest
+        .fn()
+        .mockRejectedValue(new Error('bucket unreachable')),
       uploadFile: jest.fn(),
     };
     const service = new VideoProcessingService(videoRepository, storageService);

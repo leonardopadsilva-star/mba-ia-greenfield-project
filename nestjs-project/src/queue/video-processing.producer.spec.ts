@@ -15,7 +15,10 @@ describe('VideoProcessingProducer', () => {
 
     const producer = moduleRef.get(VideoProcessingProducer);
 
-    await producer.emitProcessingJob('video-1', 'videos/c1/video-1/original.mp4');
+    await producer.emitProcessingJob(
+      'video-1',
+      'videos/c1/video-1/original.mp4',
+    );
 
     expect(emit).toHaveBeenCalledWith('video.processing', {
       videoId: 'video-1',
@@ -36,8 +39,8 @@ describe('VideoProcessingProducer', () => {
 
     const producer = moduleRef.get(VideoProcessingProducer);
 
-    await expect(
-      producer.emitProcessingJob('video-1', 'key'),
-    ).rejects.toThrow('broker unavailable');
+    await expect(producer.emitProcessingJob('video-1', 'key')).rejects.toThrow(
+      'broker unavailable',
+    );
   });
 });

@@ -109,9 +109,13 @@ describe('VideosService (integration)', () => {
     });
     const etag = putResponse.headers.get('etag')!;
 
-    const result = await videosService.completeUpload(channel.id, initiated.id, {
-      parts: [{ part_number: 1, etag }],
-    });
+    const result = await videosService.completeUpload(
+      channel.id,
+      initiated.id,
+      {
+        parts: [{ part_number: 1, etag }],
+      },
+    );
 
     expect(result.status).toBe(VideoStatus.PROCESSANDO);
 

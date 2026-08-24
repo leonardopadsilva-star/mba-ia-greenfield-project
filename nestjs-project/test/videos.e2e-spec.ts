@@ -60,8 +60,9 @@ describe('Videos (e2e)', () => {
     let capturedToken = '';
     jest
       .spyOn(mailServiceInstance, 'sendConfirmationEmail')
-      .mockImplementationOnce(async (_e: string, _n: string, t: string) => {
+      .mockImplementationOnce((_e: string, _n: string, t: string) => {
         capturedToken = t;
+        return Promise.resolve();
       });
     await request(app.getHttpServer())
       .post('/auth/register')
@@ -111,13 +112,11 @@ describe('Videos (e2e)', () => {
     }, 30000);
 
     it('returns 401 without an Authorization header', async () => {
-      const res = await request(app.getHttpServer())
-        .post('/videos')
-        .send({
-          original_filename: 'video.mp4',
-          content_type: 'video/mp4',
-          size_bytes: 1024,
-        });
+      const res = await request(app.getHttpServer()).post('/videos').send({
+        original_filename: 'video.mp4',
+        content_type: 'video/mp4',
+        size_bytes: 1024,
+      });
 
       expect(res.status).toBe(401);
     });
@@ -286,9 +285,7 @@ describe('Videos (e2e)', () => {
   });
 
   describe('GET /videos/:publicId', () => {
-    async function initiateUpload(
-      token: string,
-    ): Promise<{ id: string }> {
+    async function initiateUpload(token: string): Promise<{ id: string }> {
       const res = await request(app.getHttpServer())
         .post('/videos')
         .set('Authorization', `Bearer ${token}`)
@@ -403,9 +400,7 @@ describe('Videos (e2e)', () => {
       );
 
       expect(res.status).toBe(302);
-      expect(decodeURIComponent(res.headers.location)).toContain(
-        'attachment',
-      );
+      expect(decodeURIComponent(res.headers.location)).toContain('attachment');
     }, 30000);
 
     it('both endpoints return 404 VIDEO_NOT_FOUND for an unknown publicId', async () => {
