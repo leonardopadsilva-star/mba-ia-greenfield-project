@@ -1,7 +1,7 @@
 # phase-03-videos — Progress
 
 **Status:** in_progress
-**SIs:** 10/11 completed
+**SIs:** 11/11 completed
 
 ### SI-03.1 — Dependencies, Config Namespaces, and Docker Compose
 - **Status:** completed
@@ -81,6 +81,10 @@
   - E2E tests reach a `pronto` video the same way as SI-03.9's — direct `dataSource` update, since the worker isn't running during API e2e tests.
 
 ### SI-03.11 — End-to-End Upload-to-Playback Flow
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 1 passing (real ffprobe/ffmpeg + real RabbitMQ worker process)
+- **Observations:**
+  - No binary fixture committed to the repo — `beforeAll` generates a real ~2s synthetic MP4 via `ffmpeg -f lavfi -i testsrc=... -f lavfi -i sine=...` (available in the container per SI-03.8's Dockerfile change), so the test is fully self-contained and reproducible without a checked-in video asset.
+  - This test requires a **real worker process actively running** in the separate `worker` container — unlike every other SI, which mocked or DB-updated around the worker. Manually started `npm run start:worker:dev` in the `worker` container before running this test (it drained the RabbitMQ backlog left by earlier SIs' e2e runs first, then picked up this test's real job), and stopped it again afterward. This is a real operational gap worth flagging: the worker isn't started automatically by anything, so this specific e2e file will hang/timeout in any environment (CI included) unless something first brings up a live worker process — out of scope for this phase to solve (no CI pipeline exists yet in this project), but the next phase or a CI setup task should account for it.
+  - `fetch(url, { body: <Buffer> })` failed `tsc` under the project's `@types/node` version — `Buffer` didn't satisfy `BodyInit`/`BlobPart` due to an `ArrayBufferLike`-vs-`ArrayBuffer` structural mismatch (SharedArrayBuffer branch). Fixed with `new Blob([Uint8Array.from(buffer)])`, which copies into a plain `Uint8Array` backed by a fresh `ArrayBuffer`.
+  - `Uint8Array.from(fixtureBuffer)` — this same pattern is worth reusing anywhere else binary bytes need to go through `fetch`'s `body` in this project.
