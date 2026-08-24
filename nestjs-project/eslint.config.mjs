@@ -49,6 +49,11 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',
+      // `expect(mock.method).toHaveBeenCalledWith(...)` on a jest.Mocked<T>
+      // passes a bare method reference — jest never invokes it as `this.method()`,
+      // it only inspects call history, so the "unintended this" risk this rule
+      // guards against does not apply to jest assertions.
+      '@typescript-eslint/unbound-method': 'off',
     },
   },
 );

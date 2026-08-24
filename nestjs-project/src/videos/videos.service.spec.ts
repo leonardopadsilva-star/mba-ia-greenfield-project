@@ -220,7 +220,9 @@ describe('VideosService', () => {
       };
       const storageService: any = {
         completeMultipartUpload: jest.fn().mockResolvedValue(undefined),
-        getObjectSize: jest.fn().mockRejectedValue(new Error('object not found')),
+        getObjectSize: jest
+          .fn()
+          .mockRejectedValue(new Error('object not found')),
       };
       const service = new VideosService(
         repository,
