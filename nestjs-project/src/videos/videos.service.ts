@@ -11,6 +11,7 @@ import { Video, VideoStatus } from './entities/video.entity';
 import {
   FileTooLargeException,
   ForbiddenVideoAccessException,
+  InvalidUploadStateException,
   MultipartCompletionFailedException,
   UploadAlreadyCompletedException,
   VideoNotFoundException,
@@ -108,6 +109,19 @@ export class VideosService {
     );
 
     return { id: video.public_id, status: video.status };
+  }
+
+  async abortUpload(channelId: string, publicId: string): Promise<void> {
+    const video = await this.findOwnedVideo(channelId, publicId);
+    if (video.status !== VideoStatus.RASCUNHO) {
+      throw new InvalidUploadStateException();
+    }
+
+    await this.storageService.abortMultipartUpload(
+      video.original_key!,
+      video.upload_id!,
+    );
+    await this.videoRepository.remove(video);
   }
 
   private async findOwnedVideo(

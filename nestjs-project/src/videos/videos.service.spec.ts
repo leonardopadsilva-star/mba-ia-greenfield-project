@@ -4,6 +4,7 @@ import { Video, VideoStatus } from './entities/video.entity';
 import {
   FileTooLargeException,
   ForbiddenVideoAccessException,
+  InvalidUploadStateException,
   MultipartCompletionFailedException,
   UploadAlreadyCompletedException,
   VideoNotFoundException,
@@ -240,6 +241,61 @@ describe('VideosService', () => {
         video.id,
         video.original_key,
       );
+    });
+  });
+
+  describe('abortUpload', () => {
+    it('throws VideoNotFoundException when the video does not exist', async () => {
+      const repository: any = { findOne: jest.fn().mockResolvedValue(null) };
+      const service = new VideosService(repository, {} as any, makeProducer());
+
+      await expect(
+        service.abortUpload('channel-1', 'missing'),
+      ).rejects.toThrow(VideoNotFoundException);
+    });
+
+    it('throws ForbiddenVideoAccessException when the caller does not own the video', async () => {
+      const video = makeVideo({ channel_id: 'other-channel' });
+      const repository: any = { findOne: jest.fn().mockResolvedValue(video) };
+      const service = new VideosService(repository, {} as any, makeProducer());
+
+      await expect(
+        service.abortUpload('channel-1', video.public_id),
+      ).rejects.toThrow(ForbiddenVideoAccessException);
+    });
+
+    it('throws InvalidUploadStateException when status is not rascunho', async () => {
+      const video = makeVideo({ status: VideoStatus.PROCESSANDO });
+      const repository: any = { findOne: jest.fn().mockResolvedValue(video) };
+      const service = new VideosService(repository, {} as any, makeProducer());
+
+      await expect(
+        service.abortUpload('channel-1', video.public_id),
+      ).rejects.toThrow(InvalidUploadStateException);
+    });
+
+    it('aborts the storage upload and deletes the video row on the happy path', async () => {
+      const video = makeVideo();
+      const repository: any = {
+        findOne: jest.fn().mockResolvedValue(video),
+        remove: jest.fn().mockResolvedValue(video),
+      };
+      const storageService: any = {
+        abortMultipartUpload: jest.fn().mockResolvedValue(undefined),
+      };
+      const service = new VideosService(
+        repository,
+        storageService,
+        makeProducer(),
+      );
+
+      await service.abortUpload('channel-1', video.public_id);
+
+      expect(storageService.abortMultipartUpload).toHaveBeenCalledWith(
+        video.original_key,
+        video.upload_id,
+      );
+      expect(repository.remove).toHaveBeenCalledWith(video);
     });
   });
 });

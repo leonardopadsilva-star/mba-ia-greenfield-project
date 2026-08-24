@@ -3,15 +3,18 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
+import { ThrottlerStorage, ThrottlerStorageService } from '@nestjs/throttler';
 import { AppModule } from '../src/app.module';
 import { AuthService } from '../src/auth/auth.service';
 import { DomainExceptionFilter } from '../src/common/filters/domain-exception.filter';
 import { ValidationExceptionFilter } from '../src/common/filters/validation-exception.filter';
 import { cleanAllTables } from '../src/test/create-test-data-source';
+import { Video } from '../src/videos/entities/video.entity';
 
 describe('Videos (e2e)', () => {
   let app: INestApplication<App>;
   let dataSource: DataSource;
+  let throttlerStorage: ThrottlerStorageService;
 
   beforeAll(async () => {
     const moduleFixture = await Test.createTestingModule({
@@ -33,6 +36,8 @@ describe('Videos (e2e)', () => {
     await app.init();
 
     dataSource = moduleFixture.get(DataSource);
+    throttlerStorage =
+      moduleFixture.get<ThrottlerStorageService>(ThrottlerStorage);
   }, 30000);
 
   afterAll(async () => {
@@ -41,6 +46,7 @@ describe('Videos (e2e)', () => {
 
   beforeEach(async () => {
     await cleanAllTables(dataSource);
+    throttlerStorage.storage.clear();
   });
 
   let counter = 0;
@@ -199,6 +205,83 @@ describe('Videos (e2e)', () => {
 
       expect(res.status).toBe(409);
       expect(res.body.error).toBe('UPLOAD_ALREADY_COMPLETED');
+    }, 30000);
+  });
+
+  describe('DELETE /videos/:publicId', () => {
+    async function initiateUpload(
+      token: string,
+    ): Promise<{ id: string; parts: { part_number: number; url: string }[] }> {
+      const res = await request(app.getHttpServer())
+        .post('/videos')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          original_filename: 'video.mp4',
+          content_type: 'video/mp4',
+          size_bytes: 1024,
+        });
+      return res.body;
+    }
+
+    it('returns 204 and removes the video row on a rascunho video', async () => {
+      const token = await registerConfirmAndLogin();
+      const initiated = await initiateUpload(token);
+
+      const res = await request(app.getHttpServer())
+        .delete(`/videos/${initiated.id}`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(204);
+
+      const saved = await dataSource
+        .getRepository(Video)
+        .findOne({ where: { public_id: initiated.id } });
+      expect(saved).toBeNull();
+    }, 30000);
+
+    it('returns 404 VIDEO_NOT_FOUND for an unknown publicId', async () => {
+      const token = await registerConfirmAndLogin();
+
+      const res = await request(app.getHttpServer())
+        .delete('/videos/doesnotexist')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('VIDEO_NOT_FOUND');
+    });
+
+    it('returns 403 FORBIDDEN when the caller does not own the video', async () => {
+      const ownerToken = await registerConfirmAndLogin();
+      const initiated = await initiateUpload(ownerToken);
+      const otherToken = await registerConfirmAndLogin();
+
+      const res = await request(app.getHttpServer())
+        .delete(`/videos/${initiated.id}`)
+        .set('Authorization', `Bearer ${otherToken}`);
+
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('FORBIDDEN');
+    }, 30000);
+
+    it('returns 409 INVALID_UPLOAD_STATE when the video is already processando', async () => {
+      const token = await registerConfirmAndLogin();
+      const initiated = await initiateUpload(token);
+      const putResponse = await fetch(initiated.parts[0].url, {
+        method: 'PUT',
+        body: 'a'.repeat(1024),
+      });
+      const etag = putResponse.headers.get('etag')!;
+      await request(app.getHttpServer())
+        .post(`/videos/${initiated.id}/complete`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ parts: [{ part_number: 1, etag }] });
+
+      const res = await request(app.getHttpServer())
+        .delete(`/videos/${initiated.id}`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe('INVALID_UPLOAD_STATE');
     }, 30000);
   });
 });

@@ -1,7 +1,7 @@
 # phase-03-videos — Progress
 
 **Status:** in_progress
-**SIs:** 6/11 completed
+**SIs:** 7/11 completed
 
 ### SI-03.1 — Dependencies, Config Namespaces, and Docker Compose
 - **Status:** completed
@@ -49,9 +49,10 @@
   - The e2e suite now exercises the real RabbitMQ producer end-to-end (no mock) since `AppModule` → `VideosModule` → `QueueModule` connects to the actual broker; the integration test instead mocks `VideoProcessingProducer` since its purpose is the DB/storage contract, not queue delivery (already covered by the unit test's "emits exactly one processing job" case and by SI-03.4's own producer tests).
 
 ### SI-03.7 — DELETE /videos/:publicId (Abort Upload)
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 24 passing (13 videos.service unit incl. 4 new abortUpload cases + 11 videos e2e incl. 4 new DELETE cases)
+- **Observations:**
+  - First e2e run had 2 failures (403 test got 401; 409 test crashed on `initiated.parts[0]` being undefined) — root cause was throttler-storage leakage: `videos.e2e-spec.ts` never cleared `ThrottlerStorage` between tests (unlike `auth.e2e-spec.ts`, which does), so by the 10th+ auth round-trip across the growing suite the per-IP 10 req/min cap on `/auth/*` silently 429'd `register`/`login`, leaving `access_token` (and therefore `initiated`) undefined. Fixed by adding the same `throttlerStorage.storage.clear()` in `beforeEach` that `auth.e2e-spec.ts` already uses — documented as a known gotcha in `.claude/rules/auth-jwt.md`, which I should have applied from the start.
 
 ### SI-03.8 — Video Worker (FFmpeg Processing)
 - **Status:** pending

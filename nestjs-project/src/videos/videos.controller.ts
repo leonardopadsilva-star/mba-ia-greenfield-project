@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   HttpCode,
   HttpStatus,
   Param,
@@ -109,5 +110,37 @@ export class VideosController {
   ): Promise<{ id: string; status: VideoStatus }> {
     const channel = await this.channelsService.findByUserId(user.sub);
     return this.videosService.completeUpload(channel.id, publicId, dto);
+  }
+
+  @Delete(':publicId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Abort a video upload',
+    description:
+      'Aborts an in-progress multipart upload and removes the draft video row.',
+  })
+  @ApiResponse({ status: 204, description: 'Upload aborted successfully' })
+  @ApiResponse({
+    status: 404,
+    description: 'Video not found',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'The authenticated user does not own this video',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'The video is not in an abortable state',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  async abortUpload(
+    @CurrentUser() user: JwtPayload,
+    @Param('publicId') publicId: string,
+  ): Promise<void> {
+    const channel = await this.channelsService.findByUserId(user.sub);
+    return this.videosService.abortUpload(channel.id, publicId);
   }
 }
