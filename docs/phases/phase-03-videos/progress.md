@@ -1,6 +1,6 @@
 # phase-03-videos — Progress
 
-**Status:** in_progress
+**Status:** completed
 **SIs:** 11/11 completed
 
 ### SI-03.1 — Dependencies, Config Namespaces, and Docker Compose
@@ -95,3 +95,11 @@
   - This test requires a **real worker process actively running** in the separate `worker` container — unlike every other SI, which mocked or DB-updated around the worker. Manually started `npm run start:worker:dev` in the `worker` container before running this test (it drained the RabbitMQ backlog left by earlier SIs' e2e runs first, then picked up this test's real job), and stopped it again afterward. This is a real operational gap worth flagging: the worker isn't started automatically by anything, so this specific e2e file will hang/timeout in any environment (CI included) unless something first brings up a live worker process — out of scope for this phase to solve (no CI pipeline exists yet in this project), but the next phase or a CI setup task should account for it.
   - `fetch(url, { body: <Buffer> })` failed `tsc` under the project's `@types/node` version — `Buffer` didn't satisfy `BodyInit`/`BlobPart` due to an `ArrayBufferLike`-vs-`ArrayBuffer` structural mismatch (SharedArrayBuffer branch). Fixed with `new Blob([Uint8Array.from(buffer)])`, which copies into a plain `Uint8Array` backed by a fresh `ArrayBuffer`.
   - `Uint8Array.from(fixtureBuffer)` — this same pattern is worth reusing anywhere else binary bytes need to go through `fetch`'s `body` in this project.
+
+### Final Verification (Deliverables checklist)
+- **Backend tests (unit+integration):** `docker compose exec nestjs-api npm test -- --runInBand` — 34/34 suites, 192/192 tests passing.
+- **E2E tests:** `docker compose exec nestjs-api npm run test:e2e` — 5/5 suites, 72/72 tests passing (app, auth, swagger, videos, videos-flow).
+- **Type-check:** `docker compose exec nestjs-api npx tsc --noEmit` — clean throughout every SI, and at final verification.
+- **Lint:** `docker compose exec nestjs-api npm run lint` — 0 errors from phase-03's own code. 32 errors remain, all in phase-01/02 files never touched this phase (`auth.service.spec.ts` unbound-method warnings, `channels.service.ts`'s pre-existing `isPgUniqueViolationOnColumn` helper, `create-test-data-source.ts`'s pre-existing `Function` type, `users.service.integration-spec.ts` unused import, `auth.e2e-spec.ts` require-await) — left untouched per Scope Limits (one feature/fix at a time); flagged to the user as separate pre-existing debt, not fixed here.
+- **Build:** `docker compose exec nestjs-api npm run build` — succeeds; `dist/main.js` (API) and `dist/worker/main.js` (worker) both present.
+- One flaky failure encountered during final verification (`auth.service.integration-spec.ts`'s `beforeAll` exceeding the default 5000ms Jest hook timeout under full-suite sequential load) did not reproduce in isolation (25/25 passing) or on a full-suite re-run (34/34 passing) — pre-existing file, untouched, not a regression.
