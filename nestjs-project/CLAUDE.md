@@ -34,6 +34,10 @@ docker compose exec nestjs-api npm run start:dev
 Services:
 - `nestjs-api` — NestJS API, port `3000`
 - `db` — PostgreSQL 17, port `5432`, database `streamtube`, user/password `streamtube`
+- `mailpit` — SMTP capture for local dev, web UI on port `8025`
+- `minio` — S3-compatible object storage for video files/thumbnails, ports `9000` (API) and `9001` (console)
+- `rabbitmq` — message broker for video processing jobs, ports `5672` (AMQP) and `15672` (management UI)
+- `worker` — separate NestJS microservice process (no HTTP), consumes `video.processing` jobs from RabbitMQ and runs ffmpeg/ffprobe
 
 All verification and teardown commands run on the **host machine**:
 
@@ -44,8 +48,13 @@ curl http://localhost:3000
 # Verify PostgreSQL is ready (runs inside the db container)
 docker compose exec db pg_isready -U streamtube
 
+# Verify MinIO and RabbitMQ are ready
+curl http://localhost:9000/minio/health/live
+docker compose exec rabbitmq rabbitmq-diagnostics -q ping
+
 # Check container logs
 docker compose logs nestjs-api
+docker compose logs worker
 docker compose logs db
 
 # Tear down the entire environment
