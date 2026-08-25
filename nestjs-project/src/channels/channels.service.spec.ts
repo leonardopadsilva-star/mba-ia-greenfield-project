@@ -37,6 +37,34 @@ function makeDataSource(manager: any): any {
 }
 
 describe('ChannelsService', () => {
+  describe('findByUserId', () => {
+    it('returns the channel owned by the given user', async () => {
+      const channel = makeChannel('found');
+      const findOne = jest.fn().mockResolvedValue(channel);
+      const dataSource: any = {
+        getRepository: jest.fn().mockReturnValue({ findOne }),
+      };
+      const service = new ChannelsService(dataSource);
+
+      const result = await service.findByUserId('user-id');
+
+      expect(findOne).toHaveBeenCalledWith({ where: { user_id: 'user-id' } });
+      expect(result).toBe(channel);
+    });
+
+    it('throws when no channel is found for the user', async () => {
+      const findOne = jest.fn().mockResolvedValue(null);
+      const dataSource: any = {
+        getRepository: jest.fn().mockReturnValue({ findOne }),
+      };
+      const service = new ChannelsService(dataSource);
+
+      await expect(service.findByUserId('missing-id')).rejects.toThrow(
+        'No channel found for user_id missing-id',
+      );
+    });
+  });
+
   describe('createChannel', () => {
     it('derives nickname from email prefix and saves when no collision', async () => {
       const channel = makeChannel('test');

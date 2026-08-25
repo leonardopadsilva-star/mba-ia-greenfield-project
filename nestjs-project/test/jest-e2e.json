@@ -6,5 +6,8 @@
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   },
+  "transformIgnorePatterns": [
+    "/node_modules/(?!(nanoid)/)"
+  ],
   "setupFiles": ["dotenv/config"]
 }

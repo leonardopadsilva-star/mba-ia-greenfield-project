@@ -37,6 +37,13 @@ describe('Database migrations (integration)', () => {
       ),
       dataSource.query(`DROP TABLE IF EXISTS "migrations" CASCADE`),
     ]);
+    // DROP TABLE does not drop enum types the dropped columns referenced —
+    // they are independent Postgres objects. Without this, a re-run against
+    // an already-migrated-then-table-dropped DB fails CreateAuthTokens.up()
+    // with "type ... already exists" the moment it tries to recreate it.
+    await dataSource.query(
+      `DROP TYPE IF EXISTS "public"."verification_tokens_type_enum"`,
+    );
   });
 
   afterAll(async () => {
