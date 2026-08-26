@@ -1,8 +1,4 @@
-import {
-  CreateBucketCommand,
-  HeadObjectCommand,
-  S3Client,
-} from '@aws-sdk/client-s3';
+import { HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Test } from '@nestjs/testing';
 import { ConfigModule } from '@nestjs/config';
 import storageConfig from '../config/storage.config';
@@ -19,23 +15,10 @@ const client = new S3Client({
 });
 const bucket = process.env.STORAGE_BUCKET_VIDEOS ?? 'videos';
 
-async function ensureBucketExists(): Promise<void> {
-  try {
-    await client.send(new CreateBucketCommand({ Bucket: bucket }));
-  } catch (err) {
-    const code = (err as { name?: string }).name;
-    if (code !== 'BucketAlreadyOwnedByYou' && code !== 'BucketAlreadyExists') {
-      throw err;
-    }
-  }
-}
-
 describe('StorageService (integration)', () => {
   let service: StorageService;
 
   beforeAll(async () => {
-    await ensureBucketExists();
-
     const moduleRef = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({ isGlobal: true, load: [storageConfig] }),
